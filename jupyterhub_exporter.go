@@ -1,16 +1,35 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+type ResponseJSON []struct {
+	Name         string `json:"name"`
+	Server       string `json:"server"`
+	LastActivity string `json:"last_activity"`
+}
+
+var (
+	apiHost  = flag.String("host", "http://localhost:8888/hub/api", "API host")
+	willStop = flag.Bool("stop", true, "stop single server")
+	apiToken = flag.String("token", "", "jupyterhub token (admin)")
+	waitHour = flag.Int("hours", 24, "hours to wait for stop server")
+)
+
 const (
 	namespace   = "jupyterhub"
 	metricsPath = "/metrics"
+	dateLayout  = "2006-01-02T15:04:05.000000Z"
 )
 
 type myCollector struct{}
@@ -23,17 +42,54 @@ var (
 	)
 )
 
+func APIRequest(url string, headers map[string]string) (result []byte, err error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	client := new(http.Client)
+	res, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer res.Body.Close()
+
+	result, err = ioutil.ReadAll(res.Body)
+	return
+}
+
 func (cc myCollector) Describe(ch chan<- *prometheus.Desc) {
 	prometheus.DescribeByCollect(cc, ch)
 }
 
 func (cc *myCollector) GetActiveUser() (
-	activeUsers map[string]int,
+	activeUsers map[string]int64,
 ) {
-	activeUsers = map[string]int{
-		"test":  0,
-		"test2": 1,
+	headers := map[string]string{
+		"Authorization": "token " + *apiToken,
 	}
+
+	resBody, _ := APIRequest(*apiHost+"/users", headers)
+
+	var resJSON = ResponseJSON{}
+	err := json.Unmarshal(resBody, &resJSON)
+	fmt.Println(resJSON)
+
+	activeUsers = map[string]int64{}
+	if err == nil {
+		for _, user := range resJSON {
+			if user.Server != "" {
+				t, _ := time.Parse(dateLayout, user.LastActivity)
+				activeUsers[user.Name] = t.UnixNano()
+			}
+		}
+	}
+
 	return
 }
 
@@ -43,7 +99,7 @@ func (cc myCollector) Collect(ch chan<- prometheus.Metric) {
 	for userName, lastActivity := range activeUsers {
 		ch <- prometheus.MustNewConstMetric(
 			activeUserDesc,
-			prometheus.CounterValue,
+			prometheus.UntypedValue,
 			float64(lastActivity),
 			userName,
 		)
@@ -51,6 +107,8 @@ func (cc myCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func main() {
+	flag.Parse()
+
 	reg := prometheus.NewPedanticRegistry()
 	cc := myCollector{}
 	reg.MustRegister(cc)
