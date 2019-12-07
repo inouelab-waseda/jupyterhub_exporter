@@ -111,7 +111,7 @@ func main() {
 
 	reg := prometheus.NewPedanticRegistry()
 	cc := myCollector{}
-	reg.MustRegister(cc)
+	prometheus.WrapRegistererWithPrefix(namespace, reg).MustRegister(cc)
 
 	http.Handle(metricsPath, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
