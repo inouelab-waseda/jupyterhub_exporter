@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// ResponseJSON is struct of Jupyterhub response for /hub/api/users
 type ResponseJSON []struct {
 	Name         string `json:"name"`
 	Server       string `json:"server"`
@@ -42,6 +42,7 @@ var (
 	)
 )
 
+// APIRequest is to get response for api request with http-headers
 func APIRequest(url string, headers map[string]string) (result []byte, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -78,7 +79,6 @@ func (cc *myCollector) GetActiveUser() (
 
 	var resJSON = ResponseJSON{}
 	err := json.Unmarshal(resBody, &resJSON)
-	fmt.Println(resJSON)
 
 	activeUsers = map[string]int64{}
 	if err == nil {
@@ -123,5 +123,5 @@ func main() {
 			</body>
 			</html>`))
 	})
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":9225", nil))
 }
