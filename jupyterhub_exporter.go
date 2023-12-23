@@ -20,7 +20,7 @@ type ResponseJSON []struct {
 }
 
 var (
-	apiHost  = flag.String("host", "http://localhost:443/hub/api", "API host")
+	apiHost  = flag.String("host", "http://localhost:8888/hub/api", "API host")
 	willStop = flag.Bool("stop", true, "stop single server")
 	apiToken = flag.String("token", "", "jupyterhub token (admin)")
 	waitHour = flag.Int("hours", 24, "hours to wait for stop server")
